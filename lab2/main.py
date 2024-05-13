@@ -32,7 +32,7 @@ def rmse(file_in: str):
 
 
 # by default m=2
-def minkowski_przedzialy_transform(file_in: str, breakpoints: List[int], transform_fn: Callable[[float], float], m=2):
+def minkowski_przedzialy_transform(file_in: str, breakpoints: List[int], transform_fn: Callable[[float], float], m=2, data_start_col=0, data_end_col=1):
     with open(file_in, 'r') as file_in:
         csv_reader = csv.reader(file_in)
         breakpoints.sort()
@@ -47,13 +47,14 @@ def minkowski_przedzialy_transform(file_in: str, breakpoints: List[int], transfo
                 next_stop = breakpoints[0]
                 powers_sum = 0
 
-            transformed_values = [transform_fn(float(item)) for item in line]
+            transformed_values = [transform_fn(float(item)) for item in line[data_start_col:data_end_col+1]]
             powers_sum += pow(abs(transformed_values[0] - transformed_values[1]), m)
 
         print(f'minkowski dla m={m} od {last_stop} rekordu do konca: ', pow(powers_sum, 1 / m))
 
 
 # tworzy nowy plik wynikowy
+# liczy średnią dopiero od od k-tego elementu, zatem ostatnie 10 wierszy jest prognozą
 def moving_average1(file_in, file_out: str, k: int):
     with open(file_in, 'r') as file_in:
         with open(file_out, 'w') as file_out:
@@ -79,6 +80,7 @@ def moving_average1(file_in, file_out: str, k: int):
 
 
 # tworzy nowy plik wynikowy
+# liczy średnią już od pierwszego wiersza czyli pierwszy wiersz jest identyczny jak w pliku wejściowym
 def moving_average2(file_in, file_out: str, k: int):
     with open(file_in, 'r') as file_in:
         with open(file_out, 'w') as file_out:
