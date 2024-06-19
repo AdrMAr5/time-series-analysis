@@ -1,14 +1,13 @@
 import pandas as pd
 from scipy.spatial.distance import euclidean, minkowski
 
-# Wczytanie danych z pliku CSV
-data = pd.read_csv('stock-data.csv', header=None, names=['date', 'series1', 'series2'])
 
-# Konwersja daty na format datetime
-data['date'] = pd.to_datetime(data['date'], format='%d/%m/%y')
+def load_data(file_path):
+    data = pd.read_csv(file_path, header=None, names=['date', 'series1', 'series2'])
+    data['date'] = pd.to_datetime(data['date'], format='%d/%m/%y')
+    return data
 
 
-# Funkcja do obliczania odległości w oknie ruchomym
 def moving_window_distance(series1, series2, window_size, distance_metric):
     distances = []
     for i in range(len(series1) - window_size + 1):
@@ -18,29 +17,12 @@ def moving_window_distance(series1, series2, window_size, distance_metric):
     return distances
 
 
-# Zadanie 1
-window_size_1_percent = int(len(data) * 0.01)
-window_size_5_percent = int(len(data) * 0.05)
-
-euclidean_dist_1_percent = moving_window_distance(data['series1'], data['series2'], window_size_1_percent, euclidean)
-euclidean_dist_5_percent = moving_window_distance(data['series1'], data['series2'], window_size_5_percent, euclidean)
-
-
-# Zadanie 2
 def shifted_distance(series1, series2, shift, distance_metric):
     series1_shifted = series1.shift(shift).dropna()
     series2_aligned = series2[:len(series1_shifted)]
     return distance_metric(series1_shifted, series2_aligned)
 
 
-shifts = [50, 100, 150]
-
-euclidean_distances = [shifted_distance(data['series1'], data['series2'], shift, euclidean) for shift in shifts]
-minkowski_distances = [shifted_distance(data['series1'], data['series2'], shift, lambda x, y: minkowski(x, y, p=5)) for
-                       shift in shifts]
-
-
-# Zadanie 3
 def segment_distance(series1, series2, num_segments, shift, distance_metric):
     segment_length = len(series1) // num_segments
     distances = []
@@ -52,53 +34,84 @@ def segment_distance(series1, series2, num_segments, shift, distance_metric):
     return distances
 
 
-shifts_10_percent = [0, int(len(data) * 0.1), -int(len(data) * 0.1)]
+def calculate_minkowski_param(series1, series2, start_index, p):
+    distances = []
+    minkowski_p = p
+    for i in range(start_index, len(series1)):
+        dist_concurrent = minkowski(series1[i:], series2[i:], p=minkowski_p)
+        dist_shift_minus = shifted_distance(series1, series2, -int(len(series1) * 0.1),
+                                            lambda x, y: minkowski(x, y, p=minkowski_p))
+        dist_shift_plus = shifted_distance(series1, series2, int(len(series1) * 0.1),
+                                           lambda x, y: minkowski(x, y, p=minkowski_p))
 
-segment_distances = {
-    'euclidean': {shift: segment_distance(data['series1'], data['series2'], 10, shift, euclidean) for shift in
-                  shifts_10_percent},
-    'minkowski': {
-        shift: segment_distance(data['series1'], data['series2'], 10, shift, lambda x, y: minkowski(x, y, p=5)) for
-        shift in shifts_10_percent}
-}
+        if dist_shift_minus < dist_concurrent:
+            minkowski_p += 1
+        elif dist_shift_plus < dist_concurrent and minkowski_p > 1:
+            minkowski_p -= 1
 
-# # Zadanie 4
-# Oblicz odległości szeregów (współbieżnie) z wykorzystaniem miary Minkowskiego (z parametrem 5). Począwszy
-# od 100. próbki, jeśli odległość szeregów z przesunięciem -10% jest mniejsza niż odległość liczona współbieżnie,
-# zmień parametr miary Minkowskiego o +1. Jeśli odległość szeregów z przesunięciem +10% jest mniejsza niż
-# odległość liczona współbieżnie, zmień parametr miary Minkowskiego o –1
+        distances.append(dist_concurrent)
 
-distances = []
-minkowski_param = 5
-for i in range(100, len(data)):
-    distance_concurrent = minkowski(data['series1'][i:], data['series2'][i:], p=minkowski_param)
-    distance_shifted_minus_10 = shifted_distance(data['series1'], data['series2'], -int(len(data) * 0.1), lambda x, y: minkowski(x, y, p=minkowski_param))
-    distance_shifted_plus_10 = shifted_distance(data['series1'], data['series2'], int(len(data) * 0.1), lambda x, y: minkowski(x, y, p=minkowski_param))
-
-    if distance_shifted_minus_10 < distance_concurrent:
-        minkowski_param += 1
-    elif distance_shifted_plus_10 < distance_concurrent and minkowski_param > 1:
-        minkowski_param -= 1
-
-    distances.append(distance_concurrent)
+    return distances, minkowski_p
 
 
-# Wyświetlenie wyników
-print("Zadanie 1:")
-print("Odległości Euklidesowe w oknie 1%:", ' '.join(map(str, euclidean_dist_1_percent)))
-print("Odległości Euklidesowe w oknie 5%:", ' '.join(map(str, euclidean_dist_5_percent)))
+def main():
+    file_path = 'stock-data.csv'
+    data = load_data(file_path)
 
-print("\nZadanie 2:")
-print("Odległości Euklidesowe dla przesunięć:")
-# print the table of distances
-for i in range(len(shifts)):
-    print(f"Przesunięcie {shifts[i]}: {euclidean_distances[i]}")
-print("Odległości Minkowskiego dla przesunięć:", minkowski_distances)
-for i in range(len(shifts)):
-    print(f"Przesunięcie {shifts[i]}: {minkowski_distances[i]}")
+    # Zadanie 1
+    window_size_1_percent = int(len(data) * 0.01)
+    window_size_5_percent = int(len(data) * 0.05)
 
-print("\nZadanie 3:")
-print("Odległości segmentowe dla różnych przesunięć:", segment_distances)
+    euclidean_dist_1_percent = moving_window_distance(data['series1'], data['series2'], window_size_1_percent,
+                                                      euclidean)
+    euclidean_dist_5_percent = moving_window_distance(data['series1'], data['series2'], window_size_5_percent,
+                                                      euclidean)
 
-print("\nZadanie 4:")
-print("Odległości Minkowskiego po modyfikacjach:", distances)
+    # Zadanie 2
+    shifts = [50, 100, 150]
+
+    euclidean_distances = [shifted_distance(data['series1'], data['series2'], shift, euclidean) for shift in shifts]
+    minkowski_distances = [shifted_distance(data['series1'], data['series2'], shift, lambda x, y: minkowski(x, y, p=5))
+                           for shift in shifts]
+
+    # Zadanie 3
+    shifts_10_percent = [0, int(len(data) * 0.1), -int(len(data) * 0.1)]
+
+    segment_distances = {
+        'euclidean': {shift: segment_distance(data['series1'], data['series2'], 10, shift, euclidean) for shift in
+                      shifts_10_percent},
+        'minkowski': {
+            shift: segment_distance(data['series1'], data['series2'], 10, shift, lambda x, y: minkowski(x, y, p=5)) for
+            shift in shifts_10_percent}
+    }
+
+    # Zadanie 4
+    distances, final_minkowski_p = calculate_minkowski_param(data['series1'], data['series2'], 100, p=5)
+
+    print("Zadanie 1:")
+    print(f"({len(euclidean_dist_1_percent)} elementow)Odległości Euklidesowe w oknie 1%:", ' '.join(map(str, euclidean_dist_1_percent)))
+    print(f"({len(euclidean_dist_5_percent)} elementow)Odległości Euklidesowe w oknie 5%:", ' '.join(map(str, euclidean_dist_5_percent)))
+
+    print("\nZadanie 2:")
+    print("Odległości Euklidesowe dla przesunięć:")
+    for i in range(len(shifts)):
+        print(f"Przesunięcie {shifts[i]}: {euclidean_distances[i]}")
+    print("Odległości Minkowskiego dla przesunięć:")
+    for i in range(len(shifts)):
+        print(f"Przesunięcie {shifts[i]}: {minkowski_distances[i]}")
+
+    print("\nZadanie 3:")
+    print("Odległości segmentowe dla różnych przesunięć:")
+    print("Odległości Euklidesowe:")
+    for shift in segment_distances['euclidean']:
+        print(f"({len(segment_distances['euclidean'][shift])} elementow)Przesunięcie {shift}: {' '.join(map(str,segment_distances['euclidean'][shift]))}")
+    print("Odległości Minkowskiego:")
+    for shift in segment_distances['minkowski']:
+        print(f"({len(segment_distances['minkowski'][shift])} elementow)Przesunięcie {shift}: {' '.join(map(str,segment_distances['minkowski'][shift]))}")
+
+    print("\nZadanie 4:")
+    print(f"({len(distances)} elementow)Odległości Minkowskiego po modyfikacjach:", ' '.join(map(str, distances)))
+
+
+if __name__ == "__main__":
+    main()
